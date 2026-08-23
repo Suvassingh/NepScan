@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shared Document - Scanline</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+            background: #0a0c10;
+            color: #e6e9ed;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            width: 100%;
+            background: #14181c;
+            border-radius: 16px;
+            border: 1px solid #1c2128;
+            padding: 40px 32px;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+        }
+        .icon {
+            font-size: 56px;
+            margin-bottom: 16px;
+        }
+        h1 {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: #ffffff;
+        }
+        .subtitle {
+            color: #6f7882;
+            font-size: 14px;
+            margin-bottom: 24px;
+        }
+        .doc-info {
+            background: #0f1217;
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 24px;
+            text-align: left;
+            border: 1px solid #1c2128;
+        }
+        .doc-info .label {
+            color: #6f7882;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-bottom: 2px;
+        }
+        .doc-info .value {
+            font-size: 16px;
+            font-weight: 500;
+            color: #e6e9ed;
+            margin-bottom: 10px;
+        }
+        .doc-info .value:last-child {
+            margin-bottom: 0;
+        }
+        .btn {
+            display: inline-block;
+            background: #4cffb5;
+            color: #0a0c10;
+            font-weight: 600;
+            font-size: 16px;
+            padding: 14px 40px;
+            border-radius: 10px;
+            text-decoration: none;
+            transition: all 0.2s ease;
+            border: none;
+            cursor: pointer;
+        }
+        .btn:hover {
+            background: #3ae6a0;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(76,255,181,0.25);
+        }
+        .btn:active {
+            transform: translateY(0);
+        }
+        .error {
+            color: #ff6b6b;
+            font-size: 14px;
+            margin-top: 16px;
+        }
+        .footer {
+            margin-top: 24px;
+            color: #40464f;
+            font-size: 12px;
+        }
+        .footer a {
+            color: #4cffb5;
+            text-decoration: none;
+        }
+        .expired-badge {
+            display: inline-block;
+            background: #ff6b6b20;
+            color: #ff6b6b;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 4px 12px;
+            border-radius: 20px;
+            border: 1px solid #ff6b6b40;
+            margin-bottom: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon">📄</div>
+
+        {% if error %}
+            <h1>🔒 Link Not Available</h1>
+            <p class="subtitle">{{ error }}</p>
+            <div class="error">{{ error_detail }}</div>
+        {% elif expired %}
+            <div class="expired-badge">⏰ Expired</div>
+            <h1>This Link Has Expired</h1>
+            <p class="subtitle">The document share link you're trying to access is no longer valid.</p>
+            <p style="color: #6f7882; font-size: 14px; margin-top: 8px;">
+                Please contact the document owner for a new link.
+            </p>
+        {% else %}
+            <h1>{{ document_title }}</h1>
+            <p class="subtitle">Shared securely via Scanline</p>
+
+            <div class="doc-info">
+                <div>
+                    <div class="label">Shared by</div>
+                    <div class="value">{{ owner_name|default:"Anonymous" }}</div>
+                </div>
+                <div>
+                    <div class="label">Available until</div>
+                    <div class="value">{{ expires_at|date:"F j, Y, g:i a" }}</div>
+                </div>
+                <div>
+                    <div class="label">Pages</div>
+                    <div class="value">{{ page_count }}</div>
+                </div>
+            </div>
+
+            <a href="/share/{{ token }}/download/" class="btn">📥 Download PDF</a>
+        {% endif %}
+
+        <div class="footer">
+            Powered by <a href="#">Scanline</a> · Secure Document Sharing
+        </div>
+    </div>
+</body>
+</html>
