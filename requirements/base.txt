@@ -1,0 +1,55 @@
+# Django and web framework
+Django>=4.2,<5.0
+djangorestframework>=3.14,<3.15
+django-cors-headers>=4.3,<5.0
+django-csp>=3.8,<4.0
+django-permissions-policy>=4.19,<5.0
+django-storages>=1.14,<2.0
+
+# Database & caching
+psycopg2-binary>=2.9,<3.0
+redis>=5.0,<6.0
+
+# Celery for async tasks
+celery>=5.3,<6.0
+django-celery-results>=2.5,<3.0
+
+# Supabase SDK
+supabase>=2.0,<3.0
+
+# Environment variables & secrets
+python-dotenv>=1.0,<2.0
+
+# Cryptography & JWT
+cryptography>=42.0,<43.0
+PyJWT[crypto]>=2.8,<3.0
+
+# AWS KMS (boto3) – production only, but we keep it for all
+boto3>=1.34,<2.0
+
+# Logging
+python-json-logger>=2.0,<3.0
+
+# File validation & scanning
+pyclamd>=0.4.0,<0.5.0
+
+# PDF handling
+# pikepdf>=8.0,<9.0
+reportlab>=4.0,<5.0
+
+# Office formats
+openpyxl>=3.1,<4.0
+
+# Image processing
+Pillow>=10.0,<11.0
+
+# HTTP client
+requests>=2.31,<3.0
+pytesseract>=0.3.10
+langdetect>=1.0.9
+pdf2docx>=0.5.8
+tabula-py>=2.9.0
+openai>=1.0.0
+
+opencv-python-headless>=4.8.0
+numpy>=1.24.0

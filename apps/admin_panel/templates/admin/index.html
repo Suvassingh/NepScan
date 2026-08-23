@@ -1,0 +1,229 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+  .app-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+    margin-top: 12px;
+  }
+  .app-grid .module {
+    transition: transform 0.15s ease, box-shadow 0.2s ease;
+  }
+  .app-grid .module:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 32px rgba(0,0,0,0.6);
+  }
+  .app-grid table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .app-grid table th {
+    font-family: var(--font-sans);
+    font-weight: 600;
+    font-size: 13.5px;
+    padding: 12px 16px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--panel-border);
+  }
+  .app-grid table th a {
+    color: var(--text) !important;
+    text-decoration: none;
+    transition: color var(--transition);
+  }
+  .app-grid table th a:hover { color: var(--scan) !important; }
+  .app-grid table td {
+    padding: 10px 16px;
+    text-align: right;
+    white-space: nowrap;
+    border-bottom: 1px solid var(--panel-border);
+  }
+  .app-grid table td a {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 2px 10px;
+    border-radius: 4px;
+    border: 1px solid var(--panel-border);
+    transition: all var(--transition);
+    text-decoration: none;
+  }
+  .app-grid table td a.addlink {
+    color: var(--scan) !important;
+    border-color: rgba(57,255,136,0.25);
+  }
+  .app-grid table td a.addlink:hover {
+    background: var(--scan-dim);
+    border-color: var(--scan);
+  }
+  .app-grid table td a.changelink, .app-grid table td a.viewlink {
+    color: var(--info) !important;
+  }
+  .app-grid table td a.changelink:hover, .app-grid table td a.viewlink:hover {
+    background: rgba(94,200,255,0.1);
+    border-color: var(--info);
+  }
+
+  #recent-actions-module {
+    margin-top: 24px;
+  }
+  #recent-actions-module h2, #recent-actions-module h3 {
+    font-family: var(--font-mono);
+    font-weight: 500;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    border-bottom: 1px solid var(--panel-border);
+    padding-bottom: 8px;
+    margin: 0 0 12px 0;
+  }
+  #recent-actions-module ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  #recent-actions-module li {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--panel-border);
+    font-size: 13px;
+  }
+  #recent-actions-module li a {
+    color: var(--text) !important;
+    text-decoration: none;
+    transition: color var(--transition);
+  }
+  #recent-actions-module li a:hover { color: var(--scan) !important; }
+  .mini.quiet {
+    display: block;
+    font-size: 11px;
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+  }
+  .empty-state {
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 12px 0;
+  }
+
+ 
+  .stats-bar {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 12px;
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    margin-bottom: 24px;
+  }
+  .stats-bar .stat-item {
+    text-align: center;
+  }
+  .stats-bar .stat-item .number {
+    font-family: var(--font-mono);
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--scan);
+  }
+  .stats-bar .stat-item .label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-dim);
+    margin-top: 2px;
+  }
+  .stats-bar .stat-item i {
+    margin-right: 4px;
+    color: var(--text-dim);
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+  <!-- Quick Stats -->
+  <div class="stats-bar">
+    <div class="stat-item"><div class="number">{{ total_documents|default:"0" }}</div><div class="label"><i class="fas fa-file"></i> Documents</div></div>
+    <div class="stat-item"><div class="number">{{ total_pages|default:"0" }}</div><div class="label"><i class="fas fa-copy"></i> Pages</div></div>
+    <div class="stat-item"><div class="number">{{ total_users|default:"0" }}</div><div class="label"><i class="fas fa-users"></i> Users</div></div>
+    <div class="stat-item"><div class="number">{{ ocr_done|default:"0" }}</div><div class="label"><i class="fas fa-microchip"></i> OCR Done</div></div>
+  </div>
+
+  {% if app_list %}
+    <div class="app-grid">
+      {% for app in app_list %}
+        <div class="module app-{{ app.app_label }}">
+          <h2><i class="fas fa-{{ app.app_label }}"></i> {{ app.name }}</h2>
+          <table>
+            {% for model in app.models %}
+              <tr class="model-{{ model.object_name|lower }}">
+                <th scope="row">
+                  <i class="fas fa-{{ model.object_name|lower }}"></i>
+                  {% if model.admin_url %}
+                    <a href="{{ model.admin_url }}">{{ model.name }}</a>
+                  {% else %}
+                    {{ model.name }}
+                  {% endif %}
+                </th>
+                <td>
+                  {% if model.add_url %}
+                    <a href="{{ model.add_url }}" class="addlink"><i class="fas fa-plus-circle"></i> Add</a>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if model.admin_url and not model.view_only %}
+                    <a href="{{ model.admin_url }}" class="changelink"><i class="fas fa-edit"></i> Change</a>
+                  {% elif model.admin_url and model.view_only %}
+                    <a href="{{ model.admin_url }}" class="viewlink"><i class="fas fa-eye"></i> View</a>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </table>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="empty-state">{% translate "You don't have permission to view or edit anything." %}</p>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block sidebar %}
+<div id="content-related">
+  <div class="module" id="recent-actions-module">
+    <h2>{% translate 'Recent actions' %}</h2>
+    <h3>{% translate 'My actions' %}</h3>
+    {% load log %}
+    {% get_admin_log 10 as admin_log for_user user %}
+    {% if not admin_log %}
+      <p class="empty-state">{% translate 'None available' %}</p>
+    {% else %}
+      <ul class="actionlist">
+        {% for entry in admin_log %}
+          <li class="{% if entry.is_addition %}addlink{% endif %}{% if entry.is_change %}changelink{% endif %}{% if entry.is_deletion %}deletelink{% endif %}">
+            {% if entry.is_deletion or not entry.get_admin_url %}
+              {{ entry.object_repr }}
+            {% else %}
+              <a href="{{ entry.get_admin_url }}">{{ entry.object_repr }}</a>
+            {% endif %}
+            <span class="mini quiet">
+              {% if entry.content_type %}
+                {% filter capfirst %}{{ entry.content_type }}{% endfilter %}
+              {% else %}
+                {% translate 'Unknown content' %}
+              {% endif %}
+            </span>
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
