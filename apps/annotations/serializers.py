@@ -1,0 +1,8 @@
+from rest_framework import serializers
+from .models import Annotation
+
+class AnnotationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Annotation
+        fields = ['id', 'document_id', 'page_number', 'type', 'data', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']
