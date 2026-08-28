@@ -6,7 +6,7 @@ DEBUG = False
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '').split(',')
 
 SECRET_KEY = os.environ['DJANGO_SECRET_KEY']
-
+CORS_ALLOW_ALL_ORIGINS = True
 # SSL / Security
 SECURE_SSL_REDIRECT = True
 SESSION_COOKIE_SECURE = True
