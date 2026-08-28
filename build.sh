@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# build.sh – runs during Render deployment
+set -e
 
-echo " Installing dependencies..."
+echo "📦 Installing dependencies..."
 pip install -r requirements.txt
 
-echo " Collecting static files..."
+echo "📁 Collecting static files..."
 python manage.py collectstatic --noinput
 
-echo " Running migrations..."
+echo "🗄️  Running migrations..."
 python manage.py migrate
 
-echo " Build complete!"
+echo "✅ Build complete!"
