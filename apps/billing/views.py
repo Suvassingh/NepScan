@@ -82,10 +82,11 @@ def share_preview(request, token):
         })
 
 
+
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def share_download(request, token):
-     
+    """Download the shared document as a PDF."""
     try:
         share = get_object_or_404(DocumentShare, share_token=token)
 
@@ -114,11 +115,43 @@ def share_download(request, token):
             )
 
         storage = EncryptedSupabaseStorage('pdfs')
-        pdf_bytes = storage.download(
-            owner_id=str(share.owner_id),
-            document_id=str(share.document_id),
-            storage_path=pdf_path
-        )
+        
+        try:
+            # Try to download the file directly
+            pdf_bytes = storage.download(
+                owner_id=str(share.owner_id),
+                document_id=str(share.document_id),
+                storage_path=pdf_path
+            )
+        except Exception as e:
+            # If direct download fails, try to list the files and find the correct one
+            logger.warning(f"Direct download failed for {pdf_path}: {e}")
+            # List files in the document's folder
+            prefix = f"{share.owner_id}/{share.document_id}/"
+            try:
+                file_list = supabase.storage.from_('pdfs').list(prefix)
+                if file_list:
+                    # Get the first .enc file found
+                    for file in file_list:
+                        if file['name'].endswith('.enc'):
+                            found_path = prefix + file['name']
+                            pdf_bytes = storage.download(
+                                owner_id=str(share.owner_id),
+                                document_id=str(share.document_id),
+                                storage_path=found_path
+                            )
+                            # Update the document with the correct path
+                            supabase.table('documents').update({
+                                'pdf_storage_path': found_path
+                            }).eq('id', share.document_id).execute()
+                            break
+                    else:
+                        raise Exception("No .enc file found in the document folder")
+                else:
+                    raise Exception("No files found in the document folder")
+            except Exception as e2:
+                logger.exception(f"Fallback listing also failed: {e2}")
+                raise
 
         response = FileResponse(
             io.BytesIO(pdf_bytes),
@@ -139,7 +172,6 @@ def share_download(request, token):
             {'error': 'An unexpected error occurred.'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
-
 
  
 class BillingViewSet(viewsets.GenericViewSet):
