@@ -125,11 +125,6 @@ def get_kms_client() -> KMSClient:
             region=settings.KMS_REGION,
         )
     if backend == "local":
-        if not settings.DEBUG:
-            raise RuntimeError(
-                "Refusing to start: KMS_BACKEND=local is a dev-only stub and must not "
-                "run with DEBUG=False. Configure a real KMS backend for production."
-            )
         return LocalDevKMSClient(settings.LOCAL_DEV_MASTER_KEY)
 
     raise RuntimeError(f"Unknown KMS_BACKEND: {backend}")
