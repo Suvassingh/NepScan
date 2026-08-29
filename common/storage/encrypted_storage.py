@@ -1,9 +1,11 @@
-
 from __future__ import annotations
 
 import base64
 import logging
 import uuid
+
+import requests  # ✅ needed for HEAD request
+from django.conf import settings
 
 from common.encryption import (
     EncryptedPayload,
@@ -37,9 +39,7 @@ class EncryptedSupabaseStorage:
             aad=aad,
         )
 
-        storage_path = (
-            f"{owner_id}/{document_id}/{uuid.uuid4().hex}.enc"
-        )
+        storage_path = f"{owner_id}/{document_id}/{uuid.uuid4().hex}.enc"
 
         self._client.storage.from_(self._bucket).upload(
             path=storage_path,
@@ -55,6 +55,35 @@ class EncryptedSupabaseStorage:
 
         return storage_path
 
+    def _get_metadata(self, storage_path: str) -> dict:
+        """
+        Retrieve object metadata using a HEAD request.
+        Returns a dict containing the custom metadata keys (without the 'x-amz-meta-' prefix).
+        """
+        url = (
+            f"{settings.SUPABASE_URL}/storage/v1/object/{self._bucket}/{storage_path}"
+        )
+        headers = {
+            "Authorization": f"Bearer {settings.SUPABASE_SERVICE_ROLE_KEY}"
+        }
+
+        try:
+            response = requests.head(url, headers=headers, timeout=10)
+            response.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            raise EncryptionError(
+                f"Failed to retrieve metadata for {storage_path}: {e}"
+            ) from e
+
+        # Extract custom metadata
+        meta = {}
+        for key, value in response.headers.items():
+            if key.lower().startswith("x-amz-meta-"):
+                meta_key = key[11:]  # remove "x-amz-meta-"
+                meta[meta_key] = value
+
+        return meta
+
     def download(
         self,
         *,
@@ -62,67 +91,34 @@ class EncryptedSupabaseStorage:
         document_id: str,
         storage_path: str,
     ) -> bytes:
-        # 1. Download the file bytes (this proves the file exists)
-        obj = self._client.storage.from_(self._bucket).download(
-            storage_path
-        )
+        # 1. Download the encrypted file bytes
+        obj = self._client.storage.from_(self._bucket).download(storage_path)
 
-        # 2. Get metadata by listing the parent directory.
-        # Split the path to get directory and filename.
-        if "/" in storage_path:
-            dir_path = storage_path.rsplit("/", 1)[0] + "/"
-            filename = storage_path.rsplit("/", 1)[1]
-        else:
-            dir_path = ""
-            filename = storage_path
+        # 2. Get encryption metadata via HEAD request
+        meta = self._get_metadata(storage_path)
 
-        # List the directory.
-        file_list = self._client.storage.from_(self._bucket).list(
-            dir_path
-        )
-
-        meta = {}
-
-        for entry in file_list:
-            if entry["name"] == filename:
-                meta = entry.get("metadata", {})
-                break
-
-        if not meta:
-            # If we still can't find metadata, raise a descriptive error.
-            raise EncryptionError(
-                f"Could not retrieve metadata for {storage_path}"
-            )
-
-        wrapped_dek_str = meta.get("x-amz-meta-wrapped-dek")
-        nonce_str = meta.get("x-amz-meta-nonce")
-        key_id = meta.get("x-amz-meta-key-id")
+        wrapped_dek_str = meta.get("wrapped-dek")
+        nonce_str = meta.get("nonce")
+        key_id = meta.get("key-id")
 
         if not wrapped_dek_str or not nonce_str:
             raise EncryptionError(
-                "Missing encryption metadata (wrapped_dek or nonce)"
+                f"Missing encryption metadata (wrapped_dek or nonce) for {storage_path}"
             )
 
+        # Decode from hex (preferred) or base64
         wrapped_dek = None
         nonce = None
-
-        # Try hex.
         try:
             wrapped_dek = bytes.fromhex(wrapped_dek_str)
             nonce = bytes.fromhex(nonce_str)
         except ValueError:
-            pass
-
-        # Try base64.
-        if wrapped_dek is None:
             try:
                 wrapped_dek = base64.b64decode(wrapped_dek_str)
                 nonce = base64.b64decode(nonce_str)
             except Exception as e:
                 logger.error(f"Failed to decode metadata: {e}")
-                raise EncryptionError(
-                    "Unable to decode encryption metadata"
-                ) from e
+                raise EncryptionError("Unable to decode encryption metadata") from e
 
         payload = EncryptedPayload(
             wrapped_dek=wrapped_dek,
@@ -132,13 +128,7 @@ class EncryptedSupabaseStorage:
         )
 
         aad = f"{owner_id}:{document_id}".encode()
-
-        return self._encryptor.decrypt(
-            payload,
-            aad=aad,
-        )
+        return self._encryptor.decrypt(payload, aad=aad)
 
     def delete(self, storage_path: str) -> None:
-        self._client.storage.from_(self._bucket).remove(
-            [storage_path]
-        )
+        self._client.storage.from_(self._bucket).remove([storage_path])
