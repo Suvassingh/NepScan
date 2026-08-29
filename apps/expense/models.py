@@ -2,6 +2,7 @@ import uuid
 from django.db import models
 from common.fields import EncryptedTextField, DecryptOnAccessMixin
 
+
 class ExpenseData(DecryptOnAccessMixin, models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     document_id = models.UUIDField(unique=True, db_index=True)
@@ -13,6 +14,7 @@ class ExpenseData(DecryptOnAccessMixin, models.Model):
 
     class Meta:
         db_table = 'expense_data'
+        managed = False  # table is owned by Supabase / mirrored in apps.supabase_models.ExpenseData
 
     @property
     def vendor(self):

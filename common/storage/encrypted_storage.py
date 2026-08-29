@@ -1,11 +1,7 @@
 from __future__ import annotations
 
-import base64
 import logging
 import uuid
-
-import requests  # ✅ needed for HEAD request
-from django.conf import settings
 
 from common.encryption import (
     EncryptedPayload,
@@ -13,6 +9,7 @@ from common.encryption import (
     EnvelopeEncryptor,
 )
 from common.supabase_client import get_supabase_client
+from apps.billing.models import StorageEncryptionMetadata
 
 
 logger = logging.getLogger(__name__)
@@ -41,48 +38,43 @@ class EncryptedSupabaseStorage:
 
         storage_path = f"{owner_id}/{document_id}/{uuid.uuid4().hex}.enc"
 
+        # Upload only the ciphertext. Do NOT rely on Supabase file_options
+        # for anything that needs to survive — it does not support
+        # arbitrary custom object metadata the way S3 does.
         self._client.storage.from_(self._bucket).upload(
             path=storage_path,
             file=payload.ciphertext,
             file_options={
                 "content-type": "application/octet-stream",
-                "x-amz-meta-wrapped-dek": payload.wrapped_dek.hex(),
-                "x-amz-meta-nonce": payload.nonce.hex(),
-                "x-amz-meta-key-id": payload.key_id,
-                "x-amz-meta-original-content-type": content_type,
             },
         )
 
-        return storage_path
-
-    def _get_metadata(self, storage_path: str) -> dict:
-        """
-        Retrieve object metadata using a HEAD request.
-        Returns a dict containing the custom metadata keys (without the 'x-amz-meta-' prefix).
-        """
-        url = (
-            f"{settings.SUPABASE_URL}/storage/v1/object/{self._bucket}/{storage_path}"
-        )
-        headers = {
-            "Authorization": f"Bearer {settings.SUPABASE_SERVICE_ROLE_KEY}"
-        }
-
+        # Persist the encryption metadata ourselves, in the database.
         try:
-            response = requests.head(url, headers=headers, timeout=10)
-            response.raise_for_status()
-        except requests.exceptions.RequestException as e:
+            StorageEncryptionMetadata.objects.create(
+                storage_path=storage_path,
+                wrapped_dek=payload.wrapped_dek,
+                nonce=payload.nonce,
+                key_id=payload.key_id,
+                original_content_type=content_type,
+            )
+        except Exception as exc:
+            # If we can't persist the metadata, the uploaded ciphertext is
+            # unrecoverable — clean it up rather than leaving an orphaned,
+            # undecryptable blob in storage.
+            try:
+                self._client.storage.from_(self._bucket).remove([storage_path])
+            except Exception:
+                logger.error(
+                    "Failed to roll back orphaned upload at %s after metadata "
+                    "write failure",
+                    storage_path,
+                )
             raise EncryptionError(
-                f"Failed to retrieve metadata for {storage_path}: {e}"
-            ) from e
+                f"Failed to persist encryption metadata for {storage_path}"
+            ) from exc
 
-        # Extract custom metadata
-        meta = {}
-        for key, value in response.headers.items():
-            if key.lower().startswith("x-amz-meta-"):
-                meta_key = key[11:]  # remove "x-amz-meta-"
-                meta[meta_key] = value
-
-        return meta
+        return storage_path
 
     def download(
         self,
@@ -94,31 +86,22 @@ class EncryptedSupabaseStorage:
         # 1. Download the encrypted file bytes
         obj = self._client.storage.from_(self._bucket).download(storage_path)
 
-        # 2. Get encryption metadata via HEAD request
-        meta = self._get_metadata(storage_path)
+        # 2. Look up encryption metadata from our own database
+        try:
+            meta = StorageEncryptionMetadata.objects.get(storage_path=storage_path)
+        except StorageEncryptionMetadata.DoesNotExist as exc:
+            raise EncryptionError(
+                f"Missing encryption metadata (wrapped_dek or nonce) for {storage_path}"
+            ) from exc
 
-        wrapped_dek_str = meta.get("wrapped-dek")
-        nonce_str = meta.get("nonce")
-        key_id = meta.get("key-id")
+        wrapped_dek = bytes(meta.wrapped_dek)
+        nonce = bytes(meta.nonce)
+        key_id = meta.key_id
 
-        if not wrapped_dek_str or not nonce_str:
+        if not wrapped_dek or not nonce:
             raise EncryptionError(
                 f"Missing encryption metadata (wrapped_dek or nonce) for {storage_path}"
             )
-
-        # Decode from hex (preferred) or base64
-        wrapped_dek = None
-        nonce = None
-        try:
-            wrapped_dek = bytes.fromhex(wrapped_dek_str)
-            nonce = bytes.fromhex(nonce_str)
-        except ValueError:
-            try:
-                wrapped_dek = base64.b64decode(wrapped_dek_str)
-                nonce = base64.b64decode(nonce_str)
-            except Exception as e:
-                logger.error(f"Failed to decode metadata: {e}")
-                raise EncryptionError("Unable to decode encryption metadata") from e
 
         payload = EncryptedPayload(
             wrapped_dek=wrapped_dek,
@@ -132,3 +115,4 @@ class EncryptedSupabaseStorage:
 
     def delete(self, storage_path: str) -> None:
         self._client.storage.from_(self._bucket).remove([storage_path])
+        StorageEncryptionMetadata.objects.filter(storage_path=storage_path).delete()
