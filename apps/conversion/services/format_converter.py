@@ -1,11 +1,13 @@
 import io
 import csv
 import os
+import logging
 from pdf2docx import Converter
 import pandas as pd
 import tabula
 from PIL import Image
-import fitz   
+import fitz
+from pptx import Presentation
 def pdf_to_docx(pdf_bytes: bytes) -> bytes:
     input_stream = io.BytesIO(pdf_bytes)
     output_stream = io.BytesIO()
@@ -71,3 +73,56 @@ def pdf_to_webp(pdf_bytes: bytes, dpi: int = 150, quality: int = 80) -> bytes:
     output = io.BytesIO()
     img.save(output, format="WEBP", quality=quality)
     return output.getvalue()
+
+
+
+def pdf_to_pptx(pdf_bytes: bytes) -> bytes:
+
+    try:
+        
+        prs = Presentation()
+        
+        
+        prs.slide_width = 9144000  
+        prs.slide_height = 5143500  
+        
+        # Open PDF
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+        
+        for page_num in range(len(doc)):
+            # Render page to image
+            page = doc[page_num]
+            pix = page.get_pixmap(dpi=150)
+            img_data = pix.tobytes("png")
+            img = Image.open(io.BytesIO(img_data))
+            
+            # Create blank slide
+            slide = prs.slides.add_slide(prs.slide_layouts[6])  
+            
+            # Add image as background
+            img_stream = io.BytesIO()
+            img.save(img_stream, format='PNG')
+            img_stream.seek(0)
+            
+            slide.shapes.add_picture(
+                img_stream,
+                left=0,
+                top=0,
+                width=prs.slide_width,
+                height=prs.slide_height
+            )
+        
+        doc.close()
+        
+        # Save presentation
+        output = io.BytesIO()
+        prs.save(output)
+        output.seek(0)
+        return output.getvalue()
+        
+    except Exception as e:
+        logging.exception(f"Failed to convert PDF to PPTX: {e}")
+        raise
+    
+    
+    

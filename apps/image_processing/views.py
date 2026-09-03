@@ -5,8 +5,17 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from django.http import HttpResponse
-from .services.edge_detector import detect_and_correct_perspective
 
+from apps.image_processing.services.timestamp_overlay import add_timestamp_to_image
+from .services.edge_detector import detect_and_correct_perspective
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.permissions import IsAuthenticated
+from django.http import HttpResponse
+from .services.timestamp_overlay import add_timestamp_to_image
+from apps.billing.models import StorageEncryptionMetadata
+import io
 logger = logging.getLogger(__name__)
 
 class CorrectPerspectiveView(APIView):
@@ -56,4 +65,40 @@ class CorrectPerspectiveView(APIView):
             return Response(
                 {'error': f'Processing failed: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+            
+class AddTimestampView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+         
+        if 'image' not in request.FILES:
+            return Response(
+                {'error': 'No image provided'},
+                status=400
+            )
+        
+        file_obj = request.FILES['image']
+        position = request.data.get('position', 'bottom-right')
+        format = request.data.get('format', '%Y-%m-%d %H:%M:%S')
+        
+        try:
+            image_bytes = file_obj.read()
+            processed_bytes = add_timestamp_to_image(
+                image_bytes,
+                format=format,
+                position=position
+            )
+            
+            return HttpResponse(
+                processed_bytes,
+                content_type='image/jpeg',
+                status=200
+            )
+            
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=500
             )
