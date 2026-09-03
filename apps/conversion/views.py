@@ -249,7 +249,7 @@ class ConversionViewSet(viewsets.GenericViewSet):
         doc_id = serializer.validated_data['document_id']
         target = serializer.validated_data['target_format']
 
-        if target not in ['pdf', 'jpg', 'png', 'webp', 'docx', 'xlsx', 'csv', 'txt', 'pptx','long_image']:
+        if target not in ['pdf', 'jpg', 'png', 'webp', 'docx', 'xlsx', 'csv', 'txt', 'pptx','long_image', 'long_jpg']:
             return APIResponse({}, status=400, message='Unsupported format')
 
         supabase = get_supabase_client()
