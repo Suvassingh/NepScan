@@ -1,3 +1,5 @@
+import base64
+
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -240,26 +242,15 @@ class ConversionViewSet(viewsets.GenericViewSet):
     @action(detail=False, methods=['post'])
     def convert(self, request):
         serializer = ConvertSerializer(data=request.data)
-        if not serializer.is_valid():
-            return APIResponse(
-                serializer.errors,
-                status=status.HTTP_400_BAD_REQUEST,
-                message='Validation failed'
-            )
+        serializer.is_valid(raise_exception=True)
 
         doc_id = serializer.validated_data['document_id']
         target = serializer.validated_data['target_format']
 
-        valid_formats = ['pdf', 'jpg', 'png', 'webp', 'docx', 'xlsx', 'csv', 'txt', 'pptx']
-        if target not in valid_formats:
-            return APIResponse(
-                {},
-                status=400,
-                message=f'Unsupported format. Choose from: {", ".join(valid_formats)}'
-            )
+        if target not in ['pdf', 'jpg', 'png', 'webp', 'docx', 'xlsx', 'csv', 'txt', 'pptx']:
+            return APIResponse({}, status=400, message='Unsupported format')
 
         supabase = get_supabase_client()
-        user_id = str(request.user.id)
 
         if target == 'pdf':
             doc_resp = supabase.table('documents')\
@@ -268,44 +259,24 @@ class ConversionViewSet(viewsets.GenericViewSet):
                 .execute()
 
             if not doc_resp.data:
-                return APIResponse(
-                    {},
-                    status=404,
-                    message='Document not found'
-                )
+                return APIResponse({}, status=404, message='Document not found')
 
             existing_pdf_path = doc_resp.data[0].get('pdf_storage_path')
-            encrypted_storage = EncryptedSupabaseStorage('pdfs')
+            pdf_storage = EncryptedSupabaseStorage('pdfs')
 
             if existing_pdf_path:
                 try:
-                    decrypted_bytes = encrypted_storage.download(
-                        owner_id=user_id,
+                    decrypted_bytes = pdf_storage.download(
+                        owner_id=str(request.user.id),
                         document_id=str(doc_id),
                         storage_path=existing_pdf_path
                     )
-
-                    temp_path = f"temp/{user_id}/{doc_id}/{uuid.uuid4().hex}.pdf"
-
-                    temp_storage = EncryptedSupabaseStorage('pdfs')
-                    temp_storage.upload(
-                        owner_id=user_id,
-                        document_id=str(doc_id),
-                        file_bytes=decrypted_bytes,
-                        content_type='application/pdf'
-                    )
-
-                    signed_url = supabase.storage.from_('pdfs').create_signed_url(
-                        temp_path, 60
-                    )
-
                     return APIResponse(
-                        {'download_url': signed_url},
+                        {'download_url': f"data:application/pdf;base64,{base64.b64encode(decrypted_bytes).decode()}"},
                         status=200
                     )
-
                 except Exception as e:
-                    logger.warning(f"Could not decrypt PDF: {e}")
+                    logger.warning(f"Could not generate signed URL for existing PDF {existing_pdf_path}: {e}")
 
             pages_resp = supabase.table('pages')\
                 .select('id, image_storage_path, page_number')\
@@ -314,11 +285,7 @@ class ConversionViewSet(viewsets.GenericViewSet):
                 .execute()
 
             if not pages_resp.data:
-                return APIResponse(
-                    {},
-                    status=404,
-                    message='No pages found for this document'
-                )
+                return APIResponse({}, status=404, message='No pages found for this document')
 
             image_storage = EncryptedSupabaseStorage('scans')
             image_bytes_list = []
@@ -330,7 +297,7 @@ class ConversionViewSet(viewsets.GenericViewSet):
 
                 try:
                     img_bytes = image_storage.download(
-                        owner_id=user_id,
+                        owner_id=str(request.user.id),
                         document_id=str(doc_id),
                         storage_path=path
                     )
@@ -340,7 +307,7 @@ class ConversionViewSet(viewsets.GenericViewSet):
                     try:
                         plain_storage = SupabaseStorage('scans')
                         img_bytes = plain_storage.download(
-                            owner_id=user_id,
+                            owner_id=str(request.user.id),
                             document_id=str(doc_id),
                             storage_path=path
                         )
@@ -350,46 +317,28 @@ class ConversionViewSet(viewsets.GenericViewSet):
                         continue
 
             if not image_bytes_list:
-                return APIResponse(
-                    {},
-                    status=404,
-                    message='No images could be loaded for this document'
-                )
+                return APIResponse({}, status=404, message='No images could be loaded for this document')
 
             pdf_bytes = merge_images_to_pdf(image_bytes_list)
 
-            new_pdf_path = f"{user_id}/{doc_id}/{uuid.uuid4().hex}.enc"
+            new_pdf_path = f"{request.user.id}/{doc_id}/{uuid.uuid4().hex}.enc"
 
-            uploaded_path = encrypted_storage.upload(
-                owner_id=user_id,
+            uploaded_path = pdf_storage.upload(
+                owner_id=str(request.user.id),
                 document_id=str(doc_id),
                 file_bytes=pdf_bytes,
                 content_type='application/pdf'
             )
 
-            logger.info(f"Uploaded encrypted PDF to: {uploaded_path}")
+            logger.info(f"Uploaded PDF to: {uploaded_path}")
 
             supabase.table('documents').update({
                 'pdf_storage_path': uploaded_path,
                 'page_count': len(image_bytes_list)
             }).eq('id', doc_id).execute()
 
-            temp_path = f"temp/{user_id}/{doc_id}/{uuid.uuid4().hex}.pdf"
-
-            temp_storage = EncryptedSupabaseStorage('pdfs')
-            temp_storage.upload(
-                owner_id=user_id,
-                document_id=str(doc_id),
-                file_bytes=pdf_bytes,
-                content_type='application/pdf'
-            )
-
-            signed_url = supabase.storage.from_('pdfs').create_signed_url(
-                temp_path, 60
-            )
-
             return APIResponse(
-                {'download_url': signed_url},
+                {'download_url': f"data:application/pdf;base64,{base64.b64encode(pdf_bytes).decode()}"},
                 status=200
             )
 
@@ -399,15 +348,6 @@ class ConversionViewSet(viewsets.GenericViewSet):
             status='queued'
         )
 
-        convert_document.delay(
-            str(job.id),
-            str(doc_id),
-            target,
-            str(request.user.id)
-        )
+        convert_document.delay(str(job.id), str(doc_id), target, str(request.user.id))
 
-        return APIResponse(
-            {'job_id': str(job.id)},
-            status=202,
-            message='Conversion started'
-        )
+        return APIResponse({'job_id': str(job.id)}, status=202)
