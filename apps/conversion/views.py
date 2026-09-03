@@ -1,8 +1,7 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
-from rest_framework.response import Response
+from rest_framework.parsers import MultiPartParser, FormParser
 
 from apps.jobs.models import Job
 from common.response_wrappers import APIResponse
@@ -240,7 +239,6 @@ class ConversionViewSet(viewsets.GenericViewSet):
                 'page_count': 1,
             }, status=201)
 
-
     @action(detail=False, methods=['post'])
     def convert(self, request):
         serializer = ConvertSerializer(data=request.data)
@@ -266,7 +264,6 @@ class ConversionViewSet(viewsets.GenericViewSet):
         user_id = str(request.user.id)
 
         if target == 'pdf':
-            # Get document info
             doc_resp = supabase.table('documents')\
                 .select('pdf_storage_path')\
                 .eq('id', doc_id)\
@@ -280,48 +277,38 @@ class ConversionViewSet(viewsets.GenericViewSet):
                 )
 
             existing_pdf_path = doc_resp.data[0].get('pdf_storage_path')
-
-            # Use EncryptedSupabaseStorage for decryption
             encrypted_storage = EncryptedSupabaseStorage('pdfs')
 
-            # If encrypted PDF exists, decrypt it
             if existing_pdf_path:
                 try:
-                    # Decrypt the PDF using EncryptedSupabaseStorage
                     decrypted_bytes = encrypted_storage.download(
                         owner_id=user_id,
                         document_id=str(doc_id),
                         storage_path=existing_pdf_path
                     )
-                    
-                    # Generate a signed URL for the decrypted PDF
-                    # Upload decrypted version temporarily OR return as base64
-                    # Option: Upload decrypted version to a temporary location
-                    
+
                     temp_storage = SupabaseStorage('pdfs')
                     temp_path = f"temp/{user_id}/{doc_id}/{uuid.uuid4().hex}.pdf"
-                    
+
                     temp_storage.upload(
                         owner_id=user_id,
                         document_id=str(doc_id),
                         file_bytes=decrypted_bytes,
                         content_type='application/pdf'
                     )
-                    
+
                     signed_url = supabase.storage.from_('pdfs').create_signed_url(
                         temp_path, 60
                     )
-                    
+
                     return APIResponse(
                         {'download_url': signed_url},
                         status=200
                     )
-                    
-                except Exception as e:
-                    logger.warning(f"Could not decrypt PDF {existing_pdf_path}: {e}")
-                    # Fall through to recompile
 
-            # No PDF or decryption failed – compile from pages
+                except Exception as e:
+                    logger.warning(f"Could not decrypt PDF: {e}")
+
             pages_resp = supabase.table('pages')\
                 .select('id, image_storage_path, page_number')\
                 .eq('document_id', doc_id)\
@@ -335,7 +322,6 @@ class ConversionViewSet(viewsets.GenericViewSet):
                     message='No pages found for this document'
                 )
 
-            # Use plain storage for images (they're already in encrypted storage)
             image_storage = EncryptedSupabaseStorage('scans')
             image_bytes_list = []
 
@@ -344,21 +330,38 @@ class ConversionViewSet(viewsets.GenericViewSet):
                 if path.startswith('scans/'):
                     path = path[6:]
 
-                # Download and decrypt image
-                img_bytes = image_storage.download(
-                    owner_id=user_id,
-                    document_id=str(doc_id),
-                    storage_path=path
-                )
-                image_bytes_list.append(img_bytes)
+                try:
+                    img_bytes = image_storage.download(
+                        owner_id=user_id,
+                        document_id=str(doc_id),
+                        storage_path=path
+                    )
+                    image_bytes_list.append(img_bytes)
+                except Exception as e:
+                    logger.warning(f"Could not decrypt image {path}: {e}")
+                    try:
+                        plain_storage = SupabaseStorage('scans')
+                        img_bytes = plain_storage.download(
+                            owner_id=user_id,
+                            document_id=str(doc_id),
+                            storage_path=path
+                        )
+                        image_bytes_list.append(img_bytes)
+                    except Exception as e2:
+                        logger.error(f"Failed to download image {path}: {e2}")
+                        continue
 
-            # Merge images to PDF (this creates plain PDF bytes)
+            if not image_bytes_list:
+                return APIResponse(
+                    {},
+                    status=404,
+                    message='No images could be loaded for this document'
+                )
+
             pdf_bytes = merge_images_to_pdf(image_bytes_list)
 
-            # Now encrypt the compiled PDF before storing
-            encrypted_storage = EncryptedSupabaseStorage('pdfs')
             new_pdf_path = f"{user_id}/{doc_id}/{uuid.uuid4().hex}.enc"
-            
+
             uploaded_path = encrypted_storage.upload(
                 owner_id=user_id,
                 document_id=str(doc_id),
@@ -368,23 +371,21 @@ class ConversionViewSet(viewsets.GenericViewSet):
 
             logger.info(f"Uploaded encrypted PDF to: {uploaded_path}")
 
-            # Update document with the encrypted PDF path
             supabase.table('documents').update({
                 'pdf_storage_path': uploaded_path,
                 'page_count': len(image_bytes_list)
             }).eq('id', doc_id).execute()
 
-            # Now upload a temporary decrypted version for download
             temp_storage = SupabaseStorage('pdfs')
             temp_path = f"temp/{user_id}/{doc_id}/{uuid.uuid4().hex}.pdf"
-            
+
             temp_storage.upload(
                 owner_id=user_id,
                 document_id=str(doc_id),
                 file_bytes=pdf_bytes,
                 content_type='application/pdf'
             )
-            
+
             signed_url = supabase.storage.from_('pdfs').create_signed_url(
                 temp_path, 60
             )
@@ -394,7 +395,6 @@ class ConversionViewSet(viewsets.GenericViewSet):
                 status=200
             )
 
-        # For other formats, trigger Celery task
         job = Job.objects.create(
             document_id=doc_id,
             job_type='conversion',
