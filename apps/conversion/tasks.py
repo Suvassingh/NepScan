@@ -6,7 +6,7 @@ from common.storage.encrypted_storage import EncryptedSupabaseStorage
 from common.storage.supabase_storage import SupabaseStorage
 from apps.pdf_tools.services.pdf_compiler import merge_images_to_pdf
 from .services.format_converter import (
-    pdf_to_docx, pdf_to_pptx, pdf_to_xlsx, pdf_to_csv, pdf_to_txt, pdf_to_jpg,
+    pdf_to_docx, pdf_to_long_image, pdf_to_long_image_jpg, pdf_to_pptx, pdf_to_xlsx, pdf_to_csv, pdf_to_txt, pdf_to_jpg,
     pdf_to_png, pdf_to_webp
 )
 import uuid
@@ -123,6 +123,14 @@ def convert_document(job_id: str, document_id: str, target_format: str, user_id:
             output_bytes = pdf_to_pptx(pdf_bytes)
             content_type = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
             ext = 'pptx'
+        elif target_format == 'long_image':
+            output_bytes = pdf_to_long_image(pdf_bytes)
+            content_type = 'image/png'
+            ext = 'png'
+        elif target_format == 'long_jpg':
+            output_bytes = pdf_to_long_image_jpg(pdf_bytes)
+            content_type = 'image/jpeg'
+            ext = 'jpg'
         else:
             raise ValueError(f"Unsupported format: {target_format}")
 

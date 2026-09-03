@@ -31,16 +31,7 @@ class DocumentShare(models.Model):
 
 
 class StorageEncryptionMetadata(models.Model):
-    """
-    Holds the per-object envelope-encryption metadata (wrapped_dek, nonce,
-    key_id) for files stored in EncryptedSupabaseStorage.
 
-    This exists because Supabase Storage does NOT support arbitrary custom
-    object metadata the way S3 does — passing x-amz-meta-* keys through
-    file_options is silently dropped. Without this table, wrapped_dek/nonce
-    are lost the moment upload() returns, and the ciphertext becomes
-    permanently undecryptable.
-    """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     storage_path = models.CharField(max_length=512, unique=True, db_index=True)
     wrapped_dek = models.BinaryField()

@@ -125,4 +125,78 @@ def pdf_to_pptx(pdf_bytes: bytes) -> bytes:
         raise
     
     
-    
+def pdf_to_long_image(pdf_bytes: bytes, dpi: int = 150) -> bytes:
+    """
+    Convert all PDF pages to a single long vertical image.
+    All pages are stitched together vertically into one PNG.
+    """
+    try:
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+        images = []
+        
+        for page_num in range(len(doc)):
+            page = doc[page_num]
+            pix = page.get_pixmap(dpi=dpi)
+            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+            images.append(img)
+        
+        doc.close()
+        
+        if not images:
+            raise ValueError("No pages found in PDF")
+        
+        total_height = sum(img.height for img in images)
+        max_width = max(img.width for img in images)
+        
+        long_img = Image.new('RGB', (max_width, total_height))
+        y_offset = 0
+        
+        for img in images:
+            long_img.paste(img, (0, y_offset))
+            y_offset += img.height
+        
+        output = io.BytesIO()
+        long_img.save(output, format='PNG', optimize=True)
+        return output.getvalue()
+        
+    except Exception as e:
+        logging.exception(f"Failed to convert PDF to long image: {e}")
+        raise
+
+
+def pdf_to_long_image_jpg(pdf_bytes: bytes, dpi: int = 150, quality: int = 85) -> bytes:
+    """
+    Convert all PDF pages to a single long vertical JPEG image.
+    """
+    try:
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+        images = []
+        
+        for page_num in range(len(doc)):
+            page = doc[page_num]
+            pix = page.get_pixmap(dpi=dpi)
+            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+            images.append(img)
+        
+        doc.close()
+        
+        if not images:
+            raise ValueError("No pages found in PDF")
+        
+        total_height = sum(img.height for img in images)
+        max_width = max(img.width for img in images)
+        
+        long_img = Image.new('RGB', (max_width, total_height))
+        y_offset = 0
+        
+        for img in images:
+            long_img.paste(img, (0, y_offset))
+            y_offset += img.height
+        
+        output = io.BytesIO()
+        long_img.save(output, format='JPEG', quality=quality, optimize=True)
+        return output.getvalue()
+        
+    except Exception as e:
+        logging.exception(f"Failed to convert PDF to long JPEG image: {e}")
+        raise

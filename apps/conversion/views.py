@@ -249,7 +249,7 @@ class ConversionViewSet(viewsets.GenericViewSet):
         doc_id = serializer.validated_data['document_id']
         target = serializer.validated_data['target_format']
 
-        if target not in ['pdf', 'jpg', 'png', 'webp', 'docx', 'xlsx', 'csv', 'txt', 'pptx']:
+        if target not in ['pdf', 'jpg', 'png', 'webp', 'docx', 'xlsx', 'csv', 'txt', 'pptx','long_image']:
             return APIResponse({}, status=400, message='Unsupported format')
 
         supabase = get_supabase_client()
@@ -349,7 +349,81 @@ class ConversionViewSet(viewsets.GenericViewSet):
                 },
                 status=200
             )
+        if target in ['long_image', 'long_jpg']:
+            doc_resp = supabase.table('documents')\
+                .select('pdf_storage_path')\
+                .eq('id', doc_id)\
+                .execute()
 
+            if not doc_resp.data:
+                return APIResponse({}, status=404, message='Document not found')
+
+            existing_pdf_path = doc_resp.data[0].get('pdf_storage_path')
+            pdf_storage = EncryptedSupabaseStorage('pdfs')
+
+            try:
+                if existing_pdf_path:
+                    pdf_bytes = pdf_storage.download(
+                        owner_id=str(request.user.id),
+                        document_id=str(doc_id),
+                        storage_path=existing_pdf_path
+                    )
+                else:
+                    pages_resp = supabase.table('pages')\
+                        .select('id, image_storage_path, page_number')\
+                        .eq('document_id', doc_id)\
+                        .order('page_number')\
+                        .execute()
+
+                    if not pages_resp.data:
+                        return APIResponse({}, status=404, message='No pages found for this document')
+
+                    image_storage = EncryptedSupabaseStorage('scans')
+                    image_bytes_list = []
+
+                    for page in pages_resp.data:
+                        path = page['image_storage_path']
+                        if path.startswith('scans/'):
+                            path = path[6:]
+                        try:
+                            img_bytes = image_storage.download(
+                                owner_id=str(request.user.id),
+                                document_id=str(doc_id),
+                                storage_path=path
+                            )
+                            image_bytes_list.append(img_bytes)
+                        except Exception as e:
+                            logger.warning(f"Could not decrypt image {path}: {e}")
+                            try:
+                                plain_storage = SupabaseStorage('scans')
+                                img_bytes = plain_storage.download(
+                                    owner_id=str(request.user.id),
+                                    document_id=str(doc_id),
+                                    storage_path=path
+                                )
+                                image_bytes_list.append(img_bytes)
+                            except Exception as e2:
+                                logger.error(f"Failed to download image {path}: {e2}")
+                                continue
+
+                    if not image_bytes_list:
+                        return APIResponse({}, status=404, message='No images could be loaded for this document')
+
+                    pdf_bytes = merge_images_to_pdf(image_bytes_list)
+
+                job = Job.objects.create(
+                    document_id=doc_id,
+                    job_type='conversion',
+                    status='queued'
+                )
+
+                convert_document.delay(str(job.id), str(doc_id), target, str(request.user.id))
+
+                return APIResponse({'job_id': str(job.id)}, status=202)
+
+            except Exception as e:
+                logger.exception(f"Failed to process long image: {e}")
+                return APIResponse({}, status=500, message=f'Processing failed: {str(e)}')
         # For other formats, trigger Celery task...
         job = Job.objects.create(
             document_id=doc_id,
@@ -360,3 +434,4 @@ class ConversionViewSet(viewsets.GenericViewSet):
         convert_document.delay(str(job.id), str(doc_id), target, str(request.user.id))
 
         return APIResponse({'job_id': str(job.id)}, status=202)
+        
