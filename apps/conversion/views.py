@@ -85,7 +85,6 @@ class ConversionViewSet(viewsets.GenericViewSet):
         doc_type = doc_type_map.get(ext, 'document')
 
         storage = EncryptedSupabaseStorage('scans')
-        storage_path = f"{user_id}/{doc_id}/{uuid.uuid4().hex}_{file_name}"
 
         if mime_type.startswith('image/'):
             try:
@@ -157,7 +156,6 @@ class ConversionViewSet(viewsets.GenericViewSet):
                         img.save(img_byte_arr, format='JPEG', quality=80)
                         img_bytes = img_byte_arr.getvalue()
 
-                        page_path = f"{user_id}/{doc_id}/{uuid.uuid4().hex}_page_{i+1}.jpg"
                         page_upload_path = storage.upload(
                             owner_id=user_id,
                             document_id=doc_id,
@@ -252,7 +250,7 @@ class ConversionViewSet(viewsets.GenericViewSet):
         doc_id = serializer.validated_data['document_id']
         target = serializer.validated_data['target_format']
 
-        valid_formats = ['pdf', 'jpg', 'png', 'webp', 'docx', 'xlsx', 'csv', 'txt']
+        valid_formats = ['pdf', 'jpg', 'png', 'webp', 'docx', 'xlsx', 'csv', 'txt', 'pptx']
         if target not in valid_formats:
             return APIResponse(
                 {},
@@ -287,9 +285,9 @@ class ConversionViewSet(viewsets.GenericViewSet):
                         storage_path=existing_pdf_path
                     )
 
-                    temp_storage = SupabaseStorage('pdfs')
                     temp_path = f"temp/{user_id}/{doc_id}/{uuid.uuid4().hex}.pdf"
 
+                    temp_storage = EncryptedSupabaseStorage('pdfs')
                     temp_storage.upload(
                         owner_id=user_id,
                         document_id=str(doc_id),
@@ -376,9 +374,9 @@ class ConversionViewSet(viewsets.GenericViewSet):
                 'page_count': len(image_bytes_list)
             }).eq('id', doc_id).execute()
 
-            temp_storage = SupabaseStorage('pdfs')
             temp_path = f"temp/{user_id}/{doc_id}/{uuid.uuid4().hex}.pdf"
 
+            temp_storage = EncryptedSupabaseStorage('pdfs')
             temp_storage.upload(
                 owner_id=user_id,
                 document_id=str(doc_id),
