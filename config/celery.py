@@ -1,4 +1,4 @@
-import os
+﻿import os
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -14,8 +14,11 @@ app = Celery('scanline_backend')
 
 app.config_from_object('django.conf:settings', namespace='CELERY')
 
-app.conf.worker_pool = 'solo'
-app.conf.worker_state_db = None
+app.conf.update(
+    worker_pool='solo',
+    worker_state_db=None,
+)
+
 app.autodiscover_tasks()
 
 @app.task(bind=True)
