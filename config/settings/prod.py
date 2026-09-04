@@ -7,9 +7,22 @@ ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '').split(',')
 
 SECRET_KEY = os.environ['DJANGO_SECRET_KEY']
 
-# ----- CORS Configuration -----
-# For mobile apps, we can allow all origins.
-# But if CORS_ALLOWED_ORIGINS is set to '*' (invalid), we override it.
+REDIS_URL = os.environ.get('REDIS_URL', '')
+
+ 
+if REDIS_URL.startswith('redis://'):
+    REDIS_URL = REDIS_URL.replace('redis://', 'rediss://')
+
+ 
+if not REDIS_URL:
+    REST_URL = os.environ.get('UPSTASH_REDIS_REST_URL', '')
+    if REST_URL:
+         
+        REDIS_URL = REST_URL.replace('https://', 'rediss://') + ':6379'
+
+# Celery Broker
+CELERY_BROKER_URL = REDIS_URL
+CELERY_RESULT_BACKEND = REDIS_URL
 cors_allowed = os.environ.get('CORS_ALLOWED_ORIGINS', '')
 if cors_allowed == '*':
     # Invalid wildcard – ignore it and allow all origins
@@ -20,11 +33,7 @@ else:
     CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_allowed.split(',') if origin.strip()]
     CORS_ALLOW_ALL_ORIGINS = False
 
-# If you want to allow all origins regardless, just set:
-# CORS_ALLOW_ALL_ORIGINS = True
-# And remove CORS_ALLOWED_ORIGINS from environment variables.
-
-# ----- SSL / Security -----
+ 
 SECURE_SSL_REDIRECT = True
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
@@ -45,11 +54,7 @@ DATABASES = {
     }
 }
 
-# Redis (Celery broker) – from Upstash
-CELERY_BROKER_URL = os.environ.get('REDIS_URL')
-CELERY_RESULT_BACKEND = os.environ.get('REDIS_URL')
-
-# KMS – 'local' for dev, 'aws' if you have KMS
+ 
 KMS_BACKEND = os.environ.get('KMS_BACKEND', 'local')
 LOCAL_DEV_MASTER_KEY = os.environ.get('LOCAL_DEV_MASTER_KEY')
 

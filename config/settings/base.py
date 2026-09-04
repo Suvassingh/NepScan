@@ -118,7 +118,28 @@ STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+REDIS_URL = os.environ.get('REDIS_URL', '')
 
+# Convert redis:// to rediss:// for TLS
+if REDIS_URL.startswith('redis://'):
+    REDIS_URL = REDIS_URL.replace('redis://', 'rediss://')
+
+if not REDIS_URL:
+    REDIS_URL = os.environ.get('UPSTASH_REDIS_REST_URL', '')
+    if REDIS_URL:
+        REDIS_URL = REDIS_URL.replace('https://', 'rediss://') + ':6379'
+
+if not REDIS_URL:
+    REDIS_URL = 'redis://localhost:6379/0'
+
+CELERY_BROKER_URL = REDIS_URL
+CELERY_WORKER_STATE_DB = None
+CELERY_RESULT_BACKEND = 'django-db'
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'UTC'
+CELERY_WORKER_POOL = 'solo'
 # Supabase configuration
 SUPABASE_URL = os.environ['SUPABASE_URL']
 SUPABASE_SERVICE_ROLE_KEY = os.environ['SUPABASE_SERVICE_ROLE_KEY']
@@ -126,15 +147,7 @@ SUPABASE_JWKS_URL = os.environ['SUPABASE_JWKS_URL']
 SUPABASE_JWT_AUDIENCE = os.environ['SUPABASE_JWT_AUDIENCE']
 SUPABASE_JWT_ISSUER = os.environ['SUPABASE_JWT_ISSUER']
 
-# Celery
-CELERY_BROKER_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
-CELERY_WORKER_STATE_DB = None
-CELERY_RESULT_BACKEND = 'django-db'
-CELERY_ACCEPT_CONTENT = ['json']
-CELERY_TASK_SERIALIZER = 'json'
-CELERY_RESULT_SERIALIZER = 'json'
-CELERY_TIMEZONE = TIME_ZONE
-CELERY_WORKER_POOL = 'solo'
+
 # KMS / Encryption
 KMS_BACKEND = os.environ.get('KMS_BACKEND', 'local')
 KMS_KEY_ARN = os.environ.get('KMS_KEY_ARN', '')
