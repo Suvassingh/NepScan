@@ -2,19 +2,15 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
- 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
- 
 load_dotenv(BASE_DIR / '.env')
 
- 
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-dev-key-change-me')
-DEBUG = False   
+DEBUG = False
 ALLOWED_HOSTS = []
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
 
- 
 INSTALLED_APPS = [
     'unfold',
     'apps.admin_panel',
@@ -24,13 +20,10 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    # Third-party
     'rest_framework',
     'corsheaders',
     'csp',
-    # 'permissions_policy',
     'django_celery_results',
-    # Our apps
     'apps.authentication',
     'apps.audit',
     'apps.ocr',
@@ -52,7 +45,6 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'csp.middleware.CSPMiddleware',
-    # 'permissions_policy.middleware.PermissionsPolicyMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -84,7 +76,6 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 ASGI_APPLICATION = 'config.asgi.application'
 
-# Database
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
@@ -99,7 +90,6 @@ DATABASES = {
     }
 }
 
-# Password validation
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
@@ -107,20 +97,17 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
-# Internationalization
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
 
-# Static files (CSS, JavaScript, Images)
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-# Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
 REDIS_URL = os.environ.get('REDIS_URL', '')
 
-# Convert redis:// to rediss:// for TLS
 if REDIS_URL.startswith('redis://'):
     REDIS_URL = REDIS_URL.replace('redis://', 'rediss://')
 
@@ -132,6 +119,9 @@ if not REDIS_URL:
 if not REDIS_URL:
     REDIS_URL = 'redis://localhost:6379/0'
 
+if REDIS_URL.startswith('rediss://') and 'ssl_cert_reqs' not in REDIS_URL:
+    REDIS_URL = REDIS_URL + '?ssl_cert_reqs=CERT_NONE'
+
 CELERY_BROKER_URL = REDIS_URL
 CELERY_WORKER_STATE_DB = None
 CELERY_RESULT_BACKEND = 'django-db'
@@ -140,28 +130,24 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'UTC'
 CELERY_WORKER_POOL = 'solo'
-# Supabase configuration
+
 SUPABASE_URL = os.environ['SUPABASE_URL']
 SUPABASE_SERVICE_ROLE_KEY = os.environ['SUPABASE_SERVICE_ROLE_KEY']
 SUPABASE_JWKS_URL = os.environ['SUPABASE_JWKS_URL']
 SUPABASE_JWT_AUDIENCE = os.environ['SUPABASE_JWT_AUDIENCE']
 SUPABASE_JWT_ISSUER = os.environ['SUPABASE_JWT_ISSUER']
 
-
-# KMS / Encryption
 KMS_BACKEND = os.environ.get('KMS_BACKEND', 'local')
 KMS_KEY_ARN = os.environ.get('KMS_KEY_ARN', '')
 KMS_REGION = os.environ.get('KMS_REGION', 'ap-south-1')
-LOCAL_DEV_MASTER_KEY = os.environ.get('LOCAL_DEV_MASTER_KEY', '')  # only used in local
+LOCAL_DEV_MASTER_KEY = os.environ.get('LOCAL_DEV_MASTER_KEY', '')
 SHARE_TOKEN_PEPPER = os.environ['SHARE_TOKEN_PEPPER']
 
-# File upload security
 CLAMAV_SOCKET = os.environ.get('CLAMAV_SOCKET', '/var/run/clamav/clamd.ctl')
 ALLOWED_UPLOAD_MIME_TYPES = {'image/jpeg', 'image/png', 'image/webp', 'application/pdf'}
 DATA_UPLOAD_MAX_MEMORY_SIZE = 25 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 25 * 1024 * 1024
 
-# Django REST Framework
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'apps.authentication.backends.SupabaseJWTAuthentication',
@@ -184,7 +170,6 @@ REST_FRAMEWORK = {
     'PAGE_SIZE': 20,
 }
 
-# Logging (basic; overridden in prod for JSON)
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
