@@ -7,4 +7,4 @@ RUN pip install --no-cache-dir -r requirements-celery.txt
 
 COPY . .
 
-CMD [\"celery\", \"-A\", \"config\", \"worker\", \"--loglevel=info\", \"--pool=solo\"]
+CMD [\"sh\", \"-c\", \"DJANGO_SETTINGS_MODULE=config.settings.celery_settings celery -A config worker --loglevel=info --pool=solo\"]
