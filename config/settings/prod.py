@@ -20,11 +20,11 @@ if not REDIS_URL:
 if not REDIS_URL:
     REDIS_URL = 'redis://localhost:6379/0'
 
-if REDIS_URL.startswith('rediss://') and 'ssl_cert_reqs' not in REDIS_URL:
-    REDIS_URL = REDIS_URL + '?ssl_cert_reqs=CERT_NONE'
-
+# ✅ ADD THESE CELERY SETTINGS
 CELERY_BROKER_URL = REDIS_URL
-CELERY_RESULT_BACKEND = REDIS_URL
+CELERY_RESULT_BACKEND = 'django-db'
+CELERY_WORKER_POOL = 'solo'
+CELERY_WORKER_STATE_DB = None
 
 cors_allowed = os.environ.get('CORS_ALLOWED_ORIGINS', '')
 if cors_allowed == '*':
