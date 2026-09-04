@@ -1,0 +1,13 @@
+﻿{
+  "": "https://railway.app/railway.schema.json",
+  "build": {
+    "builder": "NIXPACKS",
+    "environment": {
+      "PYTHON_VERSION": "3.11.0"
+    }
+  },
+  "deploy": {
+    "startCommand": "celery -A config worker --loglevel=info --pool=solo",
+    "restartPolicyType": "ON_FAILURE"
+  }
+}
