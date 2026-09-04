@@ -15,7 +15,7 @@ app = Celery('scanline_backend')
 app.config_from_object('django.conf:settings', namespace='CELERY')
 
 app.conf.worker_pool = 'solo'
-
+app.conf.worker_state_db = None
 app.autodiscover_tasks()
 
 @app.task(bind=True)
