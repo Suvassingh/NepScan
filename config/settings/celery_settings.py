@@ -53,3 +53,7 @@ SUPABASE_SERVICE_ROLE_KEY = os.environ.get('SUPABASE_SERVICE_ROLE_KEY', '')
 
 # OpenAI
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
+
+# KMS / Encryption
+LOCAL_DEV_MASTER_KEY = os.environ.get('LOCAL_DEV_MASTER_KEY', 'c2VjcmV0LWtleS0zMi1ieXRlcy1mb3ItdGVzdGluZw==')
+KMS_BACKEND = 'local'
