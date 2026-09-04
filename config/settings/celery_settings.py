@@ -46,3 +46,6 @@ CELERY_TIMEZONE = 'UTC'
 
 TIME_ZONE = 'UTC'
 USE_TZ = True
+
+# ? Add OpenAI API Key
+OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
