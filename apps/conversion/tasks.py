@@ -134,8 +134,8 @@ def convert_document(job_id: str, document_id: str, target_format: str, user_id:
         else:
             raise ValueError(f"Unsupported format: {target_format}")
 
-        # Upload converted file
-        converted_storage = EncryptedSupabaseStorage('converted')
+
+        converted_storage = SupabaseStorage('converted')
         path = f"{user_id}/{document_id}/{uuid.uuid4().hex}.{ext}"
         storage_path = converted_storage.upload(
             owner_id=user_id,
