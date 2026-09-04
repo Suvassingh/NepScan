@@ -1,0 +1,8 @@
+celery==5.6.3
+redis==5.3.1
+django==5.1
+django-celery-results==2.6.0
+supabase==2.31.0
+python-dotenv==1.2.3
+psycopg2-binary==2.9.12
+gunicorn==26.2.0
