@@ -33,12 +33,7 @@ DATABASES = {
     }
 }
 
-# ? Read from environment variable
 REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
-
-# ? Convert to rediss:// if needed
-if REDIS_URL.startswith('redis://'):
-    REDIS_URL = REDIS_URL.replace('redis://', 'rediss://')
 
 CELERY_BROKER_URL = REDIS_URL
 CELERY_RESULT_BACKEND = 'django-db'
@@ -52,4 +47,9 @@ CELERY_TIMEZONE = 'UTC'
 TIME_ZONE = 'UTC'
 USE_TZ = True
 
+# Supabase
+SUPABASE_URL = os.environ.get('SUPABASE_URL', '')
+SUPABASE_SERVICE_ROLE_KEY = os.environ.get('SUPABASE_SERVICE_ROLE_KEY', '')
+
+# OpenAI
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
